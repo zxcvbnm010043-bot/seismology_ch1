@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地震學第一章：大師互動教室</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @keyframes pWave {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(15px); }
+        }
+        @keyframes sWave {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(20px); }
+        }
+        .animate-p-wave { animation: pWave 1s infinite ease-in-out; }
+        .animate-s-wave { animation: sWave 1s infinite ease-in-out; }
+        
+        /* 自定義震動動畫 */
+        @keyframes custom-bounce {
+            0%, 100% { transform: translateY(-2%); }
+            50% { transform: translateY(0); }
+        }
+        .vibrate-effect { animation: custom-bounce 0.1s infinite; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // 圖示組件橋接
+        const Icon = ({ name, size = 24, className = "" }) => {
+            const [iconSvg, setIconSvg] = useState("");
+            useEffect(() => {
+                if (window.lucide) {
+                    const svg = window.lucide.createIcons();
+                }
+            }, [name]);
+            return <i data-lucide={name} style={{ width: size, height: size }} className={className}></i>;
+        };
+
+        const App = () => {
+            const [view, setView] = useState('home');
+            const [currentChapter, setCurrentChapter] = useState(null);
+            const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+            const [score, setScore] = useState(0);
+            const [showFeedback, setShowFeedback] = useState(null);
+            const [vibrate, setVibrate] = useState(false);
+            const [fireworks, setFireworks] = useState([]);
+
+            const chapters = [
+                {
+                    id: 1,
+                    title: "1.1 地震學概論 (Overview)",
+                    description: "探索地震學的基本定義、震波傳播與地球模型。",
+                    questions: [
+                        {
+                            q: "地震學 (Seismology) 最核心的研究對象是什麼？",
+                            options: ["大氣層的流動", "固體地球中的彈性波或聲波", "海洋溫度的變化", "火山噴發的岩漿成分"],
+                            ans: 1,
+                            desc: "根據課本 1.1 節，地震學是研究固體地球中『彈性波』(Elastic waves) 或聲波的學科。",
+                            source: "Stein & Wysession, p.1"
+                        },
+                        {
+                            q: "下列關於 P 波 (P-wave) 的描述何者正確？",
+                            options: ["傳播速度比 S 波慢", "質子運動方向與波傳方向垂直", "是一種縱波，會造成體積改變", "無法在液體中傳播"],
+                            ans: 2,
+                            desc: "P 波是壓力波 (Pressure wave)，質點運動方向與傳播方向平行（縱波），且速度最快。",
+                            source: "1.1.1 Overview & Chapter 2"
+                        },
+                        {
+                            q: "地震圖 (Seismogram) 主要包含哪兩類資訊？",
+                            options: ["風速與氣壓", "震源 (Source) 與介質 (Medium)", "重力與磁力", "經度與緯度"],
+                            ans: 1,
+                            desc: "地震圖記錄了震源釋放能量的特徵，以及波在穿過地層介質時受到的影響。",
+                            source: "1.1 Introduction, Fig 1.1-1"
+                        }
+                    ]
+                },
+                {
+                    id: 2,
+                    title: "1.2 地震與社會 (Society)",
+                    description: "了解地震災害、預警、建築共振與核試監控。",
+                    questions: [
+                        {
+                            q: "關於『共振效應』(Resonance)，下列敘述何者正確？",
+                            options: ["越高大的建築，共振週期通常越短", "當地鳴頻率與建築週期一致時受損最重", "共振只會發生在平房", "地震規模越大，共振就越小"],
+                            ans: 1,
+                            desc: "越高大的建築共振週期越長。當震動頻率與建築自然週期吻合，振幅會急劇放大導致破壞。",
+                            source: "2026/3/4 筆記內容"
+                        },
+                        {
+                            q: "核試監控中，如何區分地下核試與自然地震？",
+                            options: ["核試不會產生波", "比較體波震級 (mb) 與面波震級 (Ms)", "看有沒有煙霧飄出", "核試只有 S 波"],
+                            ans: 1,
+                            desc: "核試產生的 P 波相對較大。透過 mb 對 Ms (或 M0) 的比例，可以有效辨別核爆與地震。",
+                            source: "1.2.8 Nuclear monitoring, Fig 1.2-20"
+                        }
+                    ]
+                }
+            ];
+
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            }, [view, showFeedback]);
+
+            const handleAnswer = (index) => {
+                const question = chapters.find(c => c.id === currentChapter).questions[currentQuestionIndex];
+                if (index === question.ans) {
+                    setScore(score + 1);
+                    setShowFeedback('correct');
+                    createFireworks();
+                    setTimeout(nextQuestion, 1500);
+                } else {
+                    setShowFeedback('wrong');
+                    setVibrate(true);
+                    setTimeout(() => { setVibrate(false); nextQuestion(); }, 1500);
+                }
+            };
+
+            const nextQuestion = () => {
+                setShowFeedback(null);
+                const currentQs = chapters.find(c => c.id === currentChapter).questions;
+                if (currentQuestionIndex + 1 < currentQs.length) {
+                    setCurrentQuestionIndex(currentQuestionIndex + 1);
+                } else {
+                    setView('results');
+                }
+            };
+
+            const createFireworks = () => {
+                const newFireworks = Array.from({ length: 15 }).map((_, i) => ({
+                    id: Date.now() + i,
+                    x: Math.random() * 100,
+                    y: Math.random() * 100,
+                    color: `hsl(${Math.random() * 360}, 100%, 50%)`
+                }));
+                setFireworks(newFireworks);
+                setTimeout(() => setFireworks([]), 1000);
+            };
+
+            const WaveAnimation = ({ type }) => (
+                <div className="flex flex-col items-center justify-center p-4 bg-slate-900 rounded-xl my-4 overflow-hidden h-32 relative">
+                    <div className="text-xs text-slate-400 mb-2">{type === 'P' ? 'P波 (縱波)' : 'S波 (橫波)'}</div>
+                    <div className="flex space-x-2">
+                        {[...Array(10)].map((_, i) => (
+                            <div key={i} 
+                                 className={`w-3 h-3 rounded-full ${type === 'P' ? 'bg-red-500 animate-p-wave' : 'bg-blue-500 animate-s-wave'}`}
+                                 style={{ animationDelay: `${i * 0.1}s` }}
+                            />
+                        ))}
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className={`min-h-screen bg-slate-50 text-slate-800 transition-all ${vibrate ? 'vibrate-effect' : ''}`}>
+                    {fireworks.map(f => (
+                        <div key={f.id} className="fixed pointer-events-none animate-ping w-4 h-4 rounded-full z-50"
+                             style={{ left: `${f.x}%`, top: `${f.y}%`, backgroundColor: f.color }} />
+                    ))}
+
+                    <header className="bg-slate-900 text-white p-6 shadow-lg flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-red-600 p-2 rounded-lg">
+                                <Icon name="book-open" />
+                            </div>
+                            <h1 className="text-xl font-bold">地震學第一章：大師互動教室</h1>
+                        </div>
+                        {view !== 'home' && (
+                            <button onClick={() => setView('home')} className="text-sm flex items-center gap-1">
+                                <Icon name="home" size={16} /> 主選單
+                            </button>
+                        )}
+                    </header>
+
+                    <main className="max-w-4xl mx-auto p-6">
+                        {view === 'home' && (
+                            <div className="space-y-8">
+                                <div className="text-center">
+                                    <h2 className="text-3xl font-extrabold mb-4">歡迎來到地球科學之門</h2>
+                                    <p className="text-slate-600">我是您的地震學導師。請選擇一個章節開始挑戰！</p>
+                                </div>
+                                <div className="grid md:grid-cols-2 gap-6">
+                                    {chapters.map(chapter => (
+                                        <div key={chapter.id} onClick={() => { setCurrentChapter(chapter.id); setCurrentQuestionIndex(0); setScore(0); setView('quiz'); }}
+                                             className="bg-white p-6 rounded-2xl shadow-sm border hover:border-red-400 cursor-pointer transition-all">
+                                            <h3 className="text-xl font-bold mb-2">{chapter.title}</h3>
+                                            <p className="text-slate-500 text-sm mb-4">{chapter.description}</p>
+                                            <button className="w-full bg-slate-900 text-white py-2 rounded-lg">開始測驗</button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="bg-white p-6 rounded-2xl border border-dashed border-slate-300">
+                                    <h4 className="font-bold text-center mb-2">動態學習：震波傳播</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <WaveAnimation type="P" />
+                                        <WaveAnimation type="S" />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {view === 'quiz' && (
+                            <div className="bg-white rounded-3xl shadow-xl p-8 relative">
+                                <div className="flex justify-between mb-6">
+                                    <span className="text-slate-400 font-bold">問題 {currentQuestionIndex + 1} / {chapters.find(c => c.id === currentChapter).questions.length}</span>
+                                    <span className="text-green-600 font-bold">得分: {score}</span>
+                                </div>
+                                <h3 className="text-2xl font-bold mb-6">{chapters.find(c => c.id === currentChapter).questions[currentQuestionIndex].q}</h3>
+                                <div className="space-y-3">
+                                    {chapters.find(c => c.id === currentChapter).questions[currentQuestionIndex].options.map((opt, idx) => (
+                                        <button key={idx} disabled={showFeedback !== null} onClick={() => handleAnswer(idx)}
+                                                className={`w-full text-left p-4 rounded-xl border-2 transition-all 
+                                                ${showFeedback === null ? 'hover:bg-red-50 border-slate-100' : ''}
+                                                ${showFeedback === 'correct' && idx === chapters.find(c => c.id === currentChapter).questions[currentQuestionIndex].ans ? 'bg-green-500 text-white border-green-500' : ''}
+                                                ${showFeedback === 'wrong' && idx === chapters.find(c => c.id === currentChapter).questions[currentQuestionIndex].ans ? 'bg-green-100 border-green-500' : ''}`}>
+                                            {opt}
+                                        </button>
+                                    ))}
+                                </div>
+                                {showFeedback && (
+                                    <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                        <p className="font-bold text-red-600 mb-1">{showFeedback === 'correct' ? '✅ 正確！' : '❌ 哎呀！'}</p>
+                                        <p className="text-sm text-slate-600">{chapters.find(c => c.id === currentChapter).questions[currentQuestionIndex].desc}</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {view === 'results' && (
+                            <div className="text-center bg-white p-12 rounded-3xl shadow-xl">
+                                <div className="text-yellow-500 mb-4 flex justify-center"><Icon name="trophy" size={64} /></div>
+                                <h2 className="text-3xl font-bold mb-2">測驗完成！</h2>
+                                <p className="text-5xl font-black text-red-600 mb-6">{score} / {chapters.find(c => c.id === currentChapter).questions.length}</p>
+                                <button onClick={() => setView('home')} className="bg-slate-900 text-white px-8 py-3 rounded-full font-bold">返回首頁</button>
+                            </div>
+                        )}
+                    </main>
+                    
+                    <footer className="mt-12 p-8 text-center text-slate-400 text-sm">
+                        <p>💡 您知道嗎？震波是探測地球內部最直接的『超音波』工具！</p>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
